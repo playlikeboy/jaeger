@@ -115,6 +115,38 @@ func TestProcessCallRates(t *testing.T) {
 	}
 }
 
+// TestProcessCallRatesSteadyTraffic checks the rate value itself: with a
+// constant 60 spans per 60s bucket the cumulative counts grow by 60 per point
+// and the call rate must come out as 1 call/sec for every ratePer, including
+// ratePer == step, which has a single-bucket window.
+func TestProcessCallRatesSteadyTraffic(t *testing.T) {
+	now := time.Now().Truncate(time.Minute)
+	step := time.Minute
+	const buckets = 30
+
+	points := make([]*metrics.MetricPoint, 0, buckets)
+	for i := range buckets {
+		ts := now.Add(time.Duration(i-buckets+1) * step)
+		points = append(points, createMetricPoint(ts, float64(60*(i+1))))
+	}
+	timeRange := TimeRange{startTimeMillis: now.Add(-5 * time.Minute).UnixMilli()}
+
+	for _, ratePer := range []time.Duration{10 * time.Minute, 2 * time.Minute, time.Minute} {
+		t.Run(ratePer.String(), func(t *testing.T) {
+			params := metricstore.BaseQueryParameters{Step: &step, RatePer: &ratePer}
+			mf := createMetricFamily("service_call_rate", []*metrics.Metric{createMetric(points)})
+
+			result := CalculateCallRates(mf, params, timeRange)
+
+			got := result.Metrics[0].MetricPoints
+			assert.Len(t, got, 6)
+			for _, p := range got {
+				assert.InDelta(t, 1.0, p.GetGaugeValue().GetDoubleValue(), 0.001)
+			}
+		})
+	}
+}
+
 // TestProcessErrorRates tests the ProcessErrorRates function for error rate calculation.
 func TestProcessErrorRates(t *testing.T) {
 	now := time.Now()

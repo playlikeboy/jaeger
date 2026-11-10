@@ -185,7 +185,9 @@ func calcCallRate(mf *metrics.MetricFamily, params metricstore.BaseQueryParamete
 		labelKey := getLabelKey(metric.Labels)
 		// If the window is not "full" (i.e., we don't have enough preceding points
 		// to calculate a rate over the full 'lookback' period), return NaN.
-		if len(window) < lookback {
+		// The values are cumulative counts, so a rate over 'lookback' buckets
+		// needs the point at the start of the window plus 'lookback' later ones.
+		if len(window) < lookback+1 {
 			return math.NaN()
 		}
 
@@ -207,7 +209,7 @@ func calcCallRate(mf *metrics.MetricFamily, params metricstore.BaseQueryParamete
 		return math.Round(rate*100) / 100
 	}
 
-	return applySlidingWindow(mf, lookback, rateCalculator)
+	return applySlidingWindow(mf, lookback+1, rateCalculator)
 }
 
 // trimMetricPointsBefore removes metric points older than startMillis from each metric in the MetricFamily.
