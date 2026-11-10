@@ -12,9 +12,9 @@ import (
 	"net/url"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/prometheus/client_golang/api"
 	promapi "github.com/prometheus/client_golang/api/prometheus/v1"
@@ -391,16 +391,21 @@ func (m MetricsReader) buildExtraFilterSelectors(filters map[string]string) ([]s
 }
 
 // promqlDurationString formats the duration string to be promQL-compliant.
-// PromQL only accepts "single-unit" durations like "30s", "1m", "1h"; not "1h5s" or "1m0s".
+// PromQL only accepts "single-unit" durations like "30s", "1m", "1h"; not "1h5s" or "1m0s",
+// so the duration is rendered in the largest unit that divides it evenly, down to
+// milliseconds, and the rate window is exactly the requested duration.
 func promqlDurationString(d *time.Duration) string {
-	var b []byte
-	for _, c := range d.String() {
-		b = append(b, byte(c)) //nolint:gosec // G115 - duration strings are ASCII
-		if unicode.IsLetter(c) {
-			break
-		}
+	v := *d
+	switch {
+	case v%time.Hour == 0:
+		return strconv.FormatInt(int64(v/time.Hour), 10) + "h"
+	case v%time.Minute == 0:
+		return strconv.FormatInt(int64(v/time.Minute), 10) + "m"
+	case v%time.Second == 0:
+		return strconv.FormatInt(int64(v/time.Second), 10) + "s"
+	default:
+		return strconv.FormatInt(v.Milliseconds(), 10) + "ms"
 	}
-	return string(b)
 }
 
 func startSpanForQuery(ctx context.Context, metricName, query string, tp trace.Tracer) (context.Context, trace.Span) {
