@@ -391,9 +391,10 @@ func (m MetricsReader) buildExtraFilterSelectors(filters map[string]string) ([]s
 }
 
 // promqlDurationString formats the duration string to be promQL-compliant.
-// PromQL only accepts "single-unit" durations like "30s", "1m", "1h"; not "1h5s" or "1m0s",
-// so the duration is rendered in the largest unit that divides it evenly, down to
-// milliseconds, and the rate window is exactly the requested duration.
+// PromQL durations are integers with a unit (no fractions such as "1.5s" and
+// nothing below a millisecond), so the duration is rendered in the largest unit
+// that divides it evenly, down to milliseconds. The rate window is then exactly
+// the requested duration.
 func promqlDurationString(d *time.Duration) string {
 	v := *d
 	switch {
